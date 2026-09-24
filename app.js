@@ -259,11 +259,12 @@
 
   function renderBasics() {
     const basics = resume.basics;
-    const head = create("header", "resume-head");
+    const hasGithub = basics.githubEnabled && !!basics.github.trim();
+    const head = create("header", `resume-head${basics.photoEnabled && basics.photo ? " has-photo" : ""}${hasGithub ? " has-github" : ""}`);
     const identity = create("div", "identity");
     const name = editable("h1", "name", basics.name, "姓名", value => { basics.name = value; });
     const contacts = create("div", "contacts");
-    for (const [key, label] of [["phone", "手机"], ["email", "邮箱"], ["location", "所在地"]]) {
+    for (const [key, label] of [["email", "邮箱"], ["phone", "手机"], ["location", "所在地"]]) {
       contacts.append(editable("span", "contact", basics[key], label, value => { basics[key] = value; }));
     }
     identity.append(name, contacts);
@@ -284,6 +285,7 @@
       } else githubLine.append(editable("span", "github-value", basics.github, "GitHub 链接", value => {
         basics.github = value;
         githubLine.dataset.empty = String(!value.trim());
+        head.classList.toggle("has-github", !!value.trim());
       }));
       identity.append(githubLine);
     }
