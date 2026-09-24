@@ -10,6 +10,8 @@ window.DEFAULT_RESUME = {
     "phone": "19975267684",
     "email": "z694908768@gmail.com",
     "location": "浙江省·杭州",
+    "github": "",
+    "githubEnabled": true,
     "photoEnabled": true,
     "photo": ""
   },

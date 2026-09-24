@@ -10,6 +10,7 @@
   const jsonFile = document.getElementById("jsonFile");
   const photoFile = document.getElementById("photoFile");
   const modeButton = document.getElementById("modeButton");
+  const undoButton = document.getElementById("undoButton");
   const manageButton = document.getElementById("manageButton");
   let resume;
   let preview = false;
@@ -17,6 +18,10 @@
   let noticeTimer;
   let dragData = null;
   let previousPrintTitle = null;
+  const undoStack = [];
+  let lastSnapshot = "";
+  let lastEditTarget = null;
+  let lastEditTime = 0;
 
   const copy = value => JSON.parse(JSON.stringify(value));
   const uid = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -29,7 +34,7 @@
     return {
       schemaVersion: 1,
       metadata: { documentName: "新简历", updatedAt: new Date().toISOString().slice(0, 10) },
-      basics: { name: "", headline: "", phone: "", email: "", location: "", photoEnabled: false, photo: "" },
+      basics: { name: "", headline: "", phone: "", email: "", location: "", github: "", githubEnabled: true, photoEnabled: false, photo: "" },
       sections: [
         section("summary", "summary", "个人概述", 1),
         section("education", "education", "教育背景", 2),
@@ -47,12 +52,14 @@
     if (data.schemaVersion !== 1) fail("不支持此 schemaVersion；当前仅支持版本 1。");
     if (data.metadata !== undefined && (!data.metadata || typeof data.metadata !== "object" || Array.isArray(data.metadata))) fail("metadata 应为对象。");
     if (!data.basics || typeof data.basics !== "object" || Array.isArray(data.basics)) fail("缺少基本信息 basics。");
-    for (const key of ["name", "headline", "phone", "email", "location", "photo"]) {
+    for (const key of ["name", "headline", "phone", "email", "location", "github", "photo"]) {
       if (data.basics[key] === undefined) data.basics[key] = "";
       if (typeof data.basics[key] !== "string") fail(`基本信息 ${key} 应为文本。`);
     }
     if (data.basics.photoEnabled === undefined) data.basics.photoEnabled = false;
     if (typeof data.basics.photoEnabled !== "boolean") fail("photoEnabled 应为布尔值。");
+    if (data.basics.githubEnabled === undefined) data.basics.githubEnabled = true;
+    if (typeof data.basics.githubEnabled !== "boolean") fail("githubEnabled 应为布尔值。");
     if (data.basics.photo && !/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(data.basics.photo)) fail("照片需要是图片 data URL。");
     if (!Array.isArray(data.sections)) fail("缺少模块列表 sections。");
     const ids = new Set();
@@ -100,6 +107,7 @@
     clearTimeout(saveTimer);
     resume.metadata = resume.metadata || {};
     resume.metadata.updatedAt = new Date().toISOString().slice(0, 10);
+    lastSnapshot = JSON.stringify(resume);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resume));
       saveState.textContent = "已自动保存";
@@ -109,10 +117,33 @@
     }
   }
 
-  function changed() {
+  function changed(editTarget = null) {
+    const nextSnapshot = JSON.stringify(resume);
+    if (nextSnapshot !== lastSnapshot) {
+      const now = Date.now();
+      if (!editTarget || editTarget !== lastEditTarget || now - lastEditTime > 1000) {
+        undoStack.push(lastSnapshot);
+        if (undoStack.length > 30) undoStack.shift();
+      }
+      lastSnapshot = nextSnapshot;
+      lastEditTarget = editTarget;
+      lastEditTime = now;
+      undoButton.disabled = false;
+    }
     saveState.textContent = "保存中…";
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 400);
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    resume = JSON.parse(undoStack.pop());
+    lastSnapshot = JSON.stringify(resume);
+    lastEditTarget = null;
+    undoButton.disabled = undoStack.length === 0;
+    saveNow();
+    render();
+    showNotice("已撤销上一步修改。");
   }
 
   function create(tag, className, textValue) {
@@ -142,7 +173,7 @@
       if (multiline) node.setAttribute("aria-multiline", "true");
       node.addEventListener("input", () => {
         setter(multiline ? node.innerText.replace(/\r/g, "") : node.textContent.replace(/[\r\n]+/g, " "));
-        changed();
+        changed(node);
       });
       node.addEventListener("keydown", event => {
         if (event.key === "Enter" && !multiline) event.preventDefault();
@@ -231,12 +262,31 @@
     const head = create("header", "resume-head");
     const identity = create("div", "identity");
     const name = editable("h1", "name", basics.name, "姓名", value => { basics.name = value; });
-    const headline = editable("div", "headline", basics.headline, "求职方向", value => { basics.headline = value; });
     const contacts = create("div", "contacts");
     for (const [key, label] of [["phone", "手机"], ["email", "邮箱"], ["location", "所在地"]]) {
       contacts.append(editable("span", "contact", basics[key], label, value => { basics[key] = value; }));
     }
-    identity.append(name, headline, contacts);
+    identity.append(name, contacts);
+    if (basics.githubEnabled && (!preview || basics.github.trim())) {
+      const githubLine = create("div", "github-line");
+      githubLine.dataset.empty = String(!basics.github.trim());
+      githubLine.append(create("span", "github-label", "GitHub："));
+      if (preview) {
+        const value = basics.github.trim();
+        let url;
+        try {
+          const parsed = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+          if (["http:", "https:"].includes(parsed.protocol)) url = parsed.href;
+        } catch (error) { /* Keep malformed input as plain text. */ }
+        const link = create(url ? "a" : "span", "github-value", value);
+        if (url) link.href = url;
+        githubLine.append(link);
+      } else githubLine.append(editable("span", "github-value", basics.github, "GitHub 链接", value => {
+        basics.github = value;
+        githubLine.dataset.empty = String(!value.trim());
+      }));
+      identity.append(githubLine);
+    }
     const basicControls = create("div", "basics-controls edit-only");
     const photoLabel = create("label", "", "显示照片 ");
     const photoToggle = document.createElement("input");
@@ -245,6 +295,13 @@
     photoToggle.addEventListener("change", () => { basics.photoEnabled = photoToggle.checked; changed(); render(); });
     photoLabel.append(photoToggle);
     basicControls.append(photoLabel);
+    const githubLabel = create("label", "", "显示 GitHub ");
+    const githubToggle = document.createElement("input");
+    githubToggle.type = "checkbox";
+    githubToggle.checked = basics.githubEnabled;
+    githubToggle.addEventListener("change", () => { basics.githubEnabled = githubToggle.checked; changed(); render(); });
+    githubLabel.append(githubToggle);
+    basicControls.append(githubLabel);
     if (basics.photo) basicControls.append(control("移除照片", () => { basics.photo = ""; changed(); render(); }));
     identity.append(basicControls);
     head.append(identity);
@@ -282,7 +339,6 @@
     down.disabled = index === sorted.length - 1;
     controls.append(up, down);
     controls.append(control("删除", () => {
-      if (!confirm("确定删除此条目吗？")) return;
       section.items = section.items.filter(current => current.id !== item.id);
       changed(); render();
     }, "删除此条目"));
@@ -318,7 +374,11 @@
 
   function bulletNode(item, index) {
     const row = create("li", "bullet-row");
-    const node = editable("span", "bullet-text", item.bullets[index], "要点", value => { item.bullets[index] = value; });
+    row.dataset.empty = String(!item.bullets[index].trim());
+    const node = editable("span", "bullet-text", item.bullets[index], "要点", value => {
+      item.bullets[index] = value;
+      row.dataset.empty = String(!value.trim());
+    });
     node.dataset.bulletItem = item.id;
     node.dataset.bulletIndex = String(index);
     if (!preview) {
@@ -329,10 +389,18 @@
           const value = item.bullets[index];
           item.bullets.splice(index, 1, value.slice(0, start), value.slice(end));
           changed(); render(); focusBullet(item, index + 1);
-        } else if (event.key === "Backspace" && !node.textContent && item.bullets.length > 1) {
+        } else if (event.key === "Backspace" && !node.textContent.trim()) {
           event.preventDefault();
           item.bullets.splice(index, 1);
-          changed(); render(); focusBullet(item, Math.max(0, index - 1), item.bullets[Math.max(0, index - 1)].length);
+          changed(); render();
+          if (item.bullets.length) {
+            const nextIndex = Math.max(0, index - 1);
+            focusBullet(item, nextIndex, index ? item.bullets[nextIndex].length : 0);
+          } else {
+            const addButton = [...resumeElement.querySelectorAll("[data-add-bullet-item]")]
+              .find(candidate => candidate.dataset.addBulletItem === item.id);
+            addButton?.focus();
+          }
         }
       });
       node.addEventListener("paste", event => {
@@ -365,18 +433,21 @@
     }
     const top = create("div", "item-top");
     top.append(editable("span", "item-title", item.title, "条目标题", value => { item.title = value; }));
+    if (section.type === "education") top.append(editable("span", "item-subtitle education-subtitle", item.subtitle, "学历 / 专业", value => { item.subtitle = value; }));
     top.append(editable("span", "item-date", item.date, "日期", value => { item.date = value; }));
     row.append(top);
-    row.append(editable("div", "item-subtitle", item.subtitle, "副标题 / 简述", value => { item.subtitle = value; }, true));
+    if (section.type !== "education") row.append(editable("div", "item-subtitle", item.subtitle, "副标题 / 简述", value => { item.subtitle = value; }, true));
     if (section.type === "projects") row.append(editable("div", "tech-line", item.techStack || "", "技术栈", value => { item.techStack = value; }, true));
     const bullets = create("ul", "bullets");
     item.bullets.forEach((_, bulletIndex) => bullets.append(bulletNode(item, bulletIndex)));
     row.append(bullets);
     if (!preview) {
       const add = create("div", "add-row edit-only");
-      add.append(control("＋ 添加要点", () => {
+      const addButton = control("＋ 添加要点", () => {
         item.bullets.push(""); changed(); render(); focusBullet(item, item.bullets.length - 1);
-      }));
+      });
+      addButton.dataset.addBulletItem = item.id;
+      add.append(addButton);
       row.append(add);
     }
     return row;
@@ -398,7 +469,7 @@
   function newItem(section) {
     const base = { id: uid("item"), enabled: true, order: Math.max(0, ...section.items.map(item => item.order)) + 1 };
     if (section.type === "skills") section.items.push({ ...base, label: "", content: "" });
-    else section.items.push({ ...base, title: "", subtitle: "", date: "", ...(section.type === "projects" ? { techStack: "" } : {}), bullets: [""] });
+    else section.items.push({ ...base, title: "", subtitle: "", date: "", ...(section.type === "projects" ? { techStack: "" } : {}), bullets: section.type === "education" ? [] : [""] });
     changed(); render();
   }
 
@@ -410,7 +481,6 @@
       const controls = create("div", "section-controls edit-only");
       controls.append(control(section.enabled ? "隐藏" : "显示", () => { section.enabled = !section.enabled; changed(); render(); }, section.enabled ? "隐藏模块" : "显示模块"));
       if (section.type === "custom") controls.append(control("删除", () => {
-        if (!confirm("确定删除这个自定义模块吗？")) return;
         resume.sections = resume.sections.filter(current => current.id !== section.id);
         changed(); render();
       }, "删除自定义模块"));
@@ -423,7 +493,7 @@
       const sorted = ordered(section.items);
       sorted.forEach((item, index) => shell.append(section.type === "skills" ? renderSkill(section, item, sorted, index) : renderStandardItem(section, item, sorted, index)));
       if (!preview) {
-        const add = create("div", "add-row edit-only");
+        const add = create("div", "add-row section-add edit-only");
         add.append(control(section.type === "projects" ? "＋ 新增项目" : section.type === "skills" ? "＋ 新增技能组" : "＋ 新增条目", () => newItem(section)));
         shell.append(add);
       }
@@ -461,7 +531,7 @@
       validateResume(data);
       resume = copy(data);
       preview = false;
-      saveNow(); render(); showNotice("JSON 已导入并保存。");
+      changed(); saveNow(); render(); showNotice("JSON 已导入并保存。");
     } catch (error) {
       showNotice(`导入失败：${error instanceof SyntaxError ? "文件不是有效 JSON。" : error.message}`);
     } finally { jsonFile.value = ""; }
@@ -498,7 +568,7 @@
     previousPrintTitle = document.title;
     const date = new Date();
     const ymd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-    const title = [resume.basics.name || "简历", resume.basics.headline, ymd].filter(Boolean).join("_").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+    const title = [resume.basics.name || "简历", ymd].join("_").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
     document.title = title;
     window.print();
   }
@@ -507,6 +577,13 @@
     if (previousPrintTitle !== null) { document.title = previousPrintTitle; previousPrintTitle = null; }
   });
   document.getElementById("printButton").addEventListener("click", startPrint);
+  undoButton.addEventListener("click", undo);
+  document.addEventListener("keydown", event => {
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z" && undoStack.length) {
+      event.preventDefault();
+      undo();
+    }
+  });
   document.getElementById("exportButton").addEventListener("click", downloadJson);
   document.getElementById("importButton").addEventListener("click", () => jsonFile.click());
   jsonFile.addEventListener("change", () => importJson(jsonFile.files[0]));
@@ -522,12 +599,12 @@
   });
   document.getElementById("newButton").addEventListener("click", () => {
     if (!confirm("新建空白简历会替换当前内容。请先导出 JSON 备份。确定继续吗？")) return;
-    resume = blankResume(); preview = false; saveNow(); render(); showNotice("已新建空白简历。");
+    resume = blankResume(); preview = false; changed(); saveNow(); render(); showNotice("已新建空白简历。");
   });
   document.getElementById("resetButton").addEventListener("click", () => {
     if (!confirm("重置会替换当前简历。确定继续吗？")) return;
     if (!confirm("请再次确认：恢复示例简历，当前未导出的修改将丢失。")) return;
-    resume = copy(window.DEFAULT_RESUME); preview = false; saveNow(); render(); showNotice("已恢复示例简历。");
+    resume = copy(window.DEFAULT_RESUME); preview = false; changed(); saveNow(); render(); showNotice("已恢复示例简历。");
   });
   const toolbarToggle = document.getElementById("toolbarToggle");
   const toolbarActions = document.getElementById("toolbarActions");
@@ -545,5 +622,6 @@
     saveState.textContent = "示例简历";
     showNotice("本地保存无法读取，已打开示例简历。可尝试导入之前导出的 JSON。");
   }
+  lastSnapshot = JSON.stringify(resume);
   render();
 })();
