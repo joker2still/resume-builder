@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>本地简历编辑器</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="default-resume.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="toolbar" id="toolbar">
+    <div class="toolbar-main">
+      <strong class="app-name">本地简历编辑器</strong>
+      <span class="save-state" id="saveState" role="status" aria-live="polite">准备就绪</span>
+      <button type="button" id="toolbarToggle" class="toolbar-toggle" aria-expanded="false" aria-controls="toolbarActions">操作菜单</button>
+    </div>
+    <div class="toolbar-actions" id="toolbarActions">
+      <button type="button" id="modeButton">预览</button>
+      <button type="button" id="manageButton" aria-expanded="false" aria-controls="moduleManager">模块管理</button>
+      <button type="button" id="newButton">新建空白</button>
+      <button type="button" id="resetButton">重置示例</button>
+      <button type="button" id="importButton">导入 JSON</button>
+      <button type="button" id="exportButton">导出 JSON</button>
+      <button type="button" id="printButton" class="primary">导出 PDF</button>
+    </div>
+  </header>
+
+  <div class="notice" id="notice" role="alert" hidden></div>
+  <aside class="module-manager" id="moduleManager" hidden aria-label="模块管理">
+    <div class="manager-head">
+      <strong>模块管理</strong>
+      <span>拖动或使用箭头排序</span>
+    </div>
+    <div id="managerList"></div>
+    <button type="button" id="addSectionButton" class="subtle-button">＋ 新增自定义模块</button>
+  </aside>
+
+  <main class="workspace">
+    <article class="resume-page" id="resume" aria-label="简历"></article>
+  </main>
+
+  <input type="file" id="jsonFile" accept=".json,application/json" hidden>
+  <input type="file" id="photoFile" accept="image/*" hidden>
+</body>
+</html>
