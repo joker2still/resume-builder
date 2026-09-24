@@ -86,8 +86,8 @@ button { font: inherit; cursor: pointer; }
 .bullets:empty { display: none; }
 .bullet-row { position: relative; padding-left: 1px; }
 .bullet-text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
-.skill-row { position: relative; display: flex; gap: 6px; margin: 0 0 5px; break-inside: avoid-page; }
-.skill-label { font-weight: 700; flex: none; }
+.skill-row { position: relative; display: flex; gap: 6px; margin: 0; break-inside: avoid-page; }
+.skill-label { font-weight: 700; flex: 0 0 6.7em; overflow-wrap: anywhere; }
 .skill-content { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .entry-controls { display: flex; align-items: center; gap: 2px; color: #777; font-size: 11px; }
 .item-controls {
