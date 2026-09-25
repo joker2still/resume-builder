@@ -1,0 +1,26 @@
+# Local resumes and exported files
+*.json
+!manifest.json
+*.pdf
+*.doc
+*.docx
+*.odt
+output/
+private/
+
+# Personal photos; keep the app's PWA icons
+*.png
+!icons/*.png
+*.jpg
+*.jpeg
+*.webp
+*.heic
+*.avif
+*.gif
+*.bmp
+*.tif
+*.tiff
+
+# Original source material contains private resume data
+resume_builder_codex_pack/
+resume_builder_codex_pack.zip
