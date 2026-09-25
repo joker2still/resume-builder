@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#262626">
   <title>本地简历编辑器</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
   <script src="default-resume.js" defer></script>
   <script src="app.js" defer></script>
@@ -44,5 +47,13 @@
 
   <input type="file" id="jsonFile" accept=".json,application/json" hidden>
   <input type="file" id="photoFile" accept="image/*" hidden>
+  <script>
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js", { scope: "./" })
+          .catch(error => console.warn("离线缓存注册失败：", error));
+      });
+    }
+  </script>
 </body>
 </html>

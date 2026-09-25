@@ -1,10 +1,31 @@
 # 本地简历编辑器
 
-纯 HTML、CSS、JavaScript 的离线简历编辑器。无需安装依赖、账号或服务器。
+纯 HTML、CSS、JavaScript 的简历编辑器。可直接打开 HTML 文件使用，也可作为 PWA 安装并在离线时打开。无需框架或账号。
+
+## 本地运行
+
+仅编辑简历时可以双击 `index.html`。如果要测试 PWA 安装和离线缓存，需要通过本地 HTTP 服务打开，不能使用 `file://`。在项目根目录运行（需安装 Python）：
+
+```bash
+python -m http.server 8000
+```
+
+然后在 Chrome 或 Edge 打开 `http://localhost:8000/`。Windows 若使用 Python Launcher，也可将命令中的 `python` 改为 `py`。首次在线打开后，service worker 会缓存页面、脚本、样式和图标；之后可离线打开已安装的应用。
+
+## GitHub Pages 部署
+
+将仓库推送到 GitHub，在仓库的 **Settings → Pages** 中选择 **Deploy from a branch**，选择部署分支和 **/(root)**，保存后访问 `https://<用户名>.github.io/<仓库名>/`。Pages 提供 HTTPS，符合 PWA 安装要求。页面、manifest、图标和 service worker 均使用相对路径，可在仓库子路径下运行。更新静态文件时，请同步递增 `sw.js` 中的 `CACHE_NAME` 版本，让浏览器重新缓存资源。
+
+## 安装 PWA
+
+- **Chrome / Edge 桌面版**：通过 `localhost` 或 GitHub Pages 地址打开页面，使用地址栏的“安装”图标，或浏览器菜单中的“安装此应用”。
+- **Android Chrome / Edge**：打开 GitHub Pages 地址，使用浏览器菜单中的“安装应用”或“添加到主屏幕”。具体文字取决于浏览器版本。
+
+首次安装需要联网。安装后简历仍保存在当前浏览器的 LocalStorage；PWA 与同一浏览器中同一站点地址共用数据。换浏览器、设备或站点地址时，请先导出 JSON，再在新位置导入。
 
 ## 打开与编辑
 
-双击 `index.html`，建议使用最新版 Chrome 或 Edge。首次打开会显示随附的示例简历；点击“新建空白”可从空白开始。点击姓名、联系方式、GitHub 链接、模块标题及正文即可直接修改。要点中按 Enter 新增下一条，清空要点后按 Backspace 可删除空条；也可以一次粘贴多行纯文本，自动拆成多条要点。
+首次打开会显示随附的示例简历；点击“新建空白”可从空白开始。点击姓名、联系方式、GitHub 链接、模块标题及正文即可直接修改。要点中按 Enter 新增下一条，清空要点后按 Backspace 可删除空条；也可以一次粘贴多行纯文本，自动拆成多条要点。
 
 “模块管理”可开关与排序一级模块。项目、工作、教育、自定义条目以及技能组可独立开关和排序。桌面可拖动手柄；手机可使用 ↑ ↓。编辑态的隐藏条目仍可修改，预览及打印时不显示。
 
@@ -12,7 +33,7 @@
 
 ## 保存、导入与导出
 
-修改会在短暂延迟后自动保存到当前浏览器的 LocalStorage（键 `localResumeBuilder.current.v1`）。刷新或下次打开同一文件时自动恢复。浏览器清除站点数据、使用不同浏览器或移动 `index.html` 路径后，本地保存可能无法沿用，因此建议定期点击“导出 JSON”备份。
+修改会在短暂延迟后自动保存到当前浏览器的 LocalStorage（键 `localResumeBuilder.current.v1`）。刷新或下次打开同一站点时自动恢复。浏览器清除站点数据、使用不同浏览器或变更访问地址后，本地保存可能无法沿用，因此建议定期点击“导出 JSON”备份。原先通过 `file://` 打开时保存的数据不会自动迁移到 `localhost` 或 GitHub Pages；可在原地址导出 JSON 后重新导入。
 
 “导入 JSON”可恢复先前导出的 `.resume.json` 文件。导入前会检查版本与基本数据结构；无效文件不会覆盖当前简历。首次示例数据来自 `default-resume.js`。“重置示例”需要两次确认，会以示例替换当前内容。
 
